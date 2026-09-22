@@ -265,21 +265,18 @@ body{
     els.errorNote.hidden = false;
   }
 
-  // Posting with Content-Type text/plain avoids a CORS preflight (which
-  // Apps Script web apps don't answer), while the body is still valid
-  // JSON that doPost() parses with JSON.parse(e.postData.contents).
+  // Everything is a GET with query-string params. A cross-origin POST to
+  // an Apps Script /exec URL gets blocked outright ("Failed to fetch") on
+  // some phones/browsers, because the 302 redirect it does internally
+  // (to script.googleusercontent.com) doesn't come back with CORS headers
+  // a cross-origin POST is happy with. GET doesn't hit that wall.
   function callApi(action, payload){
-    var body = Object.assign({ action: action }, payload || {});
-    return fetch(API_BASE, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body)
-    }).then(function(res){ return res.json(); });
+    var params = new URLSearchParams(Object.assign({ action: action }, payload || {}));
+    return fetch(API_BASE + "?" + params.toString()).then(function(res){ return res.json(); });
   }
 
   function fetchConfig(){
-    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
-      .then(function(res){ return res.json(); });
+    return callApi("config");
   }
 
   // ---------- wheel rendering ----------
