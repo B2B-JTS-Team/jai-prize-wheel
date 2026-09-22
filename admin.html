@@ -6,6 +6,8 @@
 <title>JAI Prize Wheel — หลังบ้าน</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -228,15 +230,13 @@ body{
   }
   function escapeAttr(s){ return escapeHtml(s).replace(/"/g, "&quot;"); }
 
-  // Everything is a GET with query-string params — see index.html for why
-  // (cross-origin POST to an Apps Script /exec URL gets blocked outright,
-  // "Failed to fetch", on some phones/browsers because of how its internal
-  // redirect to script.googleusercontent.com handles CORS on POST).
   function callApi(action, payload){
-    var merged = Object.assign({ action: action, token: state.token }, payload || {});
-    if (merged.prizes && typeof merged.prizes !== "string") merged.prizes = JSON.stringify(merged.prizes);
-    var params = new URLSearchParams(merged);
-    return fetch(API_BASE + "?" + params.toString()).then(function(res){ return res.json(); });
+    var body = Object.assign({ action: action, token: state.token }, payload || {});
+    return fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function(res){ return res.json(); });
   }
 
   function showAlert(msg){
@@ -251,8 +251,11 @@ body{
     els.gateError.textContent = "";
     els.loginBtn.disabled = true;
     els.loginBtn.textContent = "กำลังตรวจสอบ...";
-    fetch(API_BASE + "?" + new URLSearchParams({ action: "adminAuth", token: token }).toString())
-      .then(function(res){ return res.json(); }).then(function(res){
+    fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "adminAuth", token: token })
+    }).then(function(res){ return res.json(); }).then(function(res){
       els.loginBtn.disabled = false;
       els.loginBtn.textContent = "เข้าสู่ระบบ";
       if (res && res.ok){
@@ -452,7 +455,11 @@ body{
   }
 
   function loadAll(){
-    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
+    // Fire the config fetch and the log fetch together instead of
+    // sequentially — they don't depend on each other, so waiting for one
+    // before starting the other just doubles the Apps Script round-trip
+    // time for no reason.
+    var configPromise = fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
       .then(function(res){ return res.json(); })
       .then(function(res){
         if (res && res.ok){
@@ -460,10 +467,10 @@ body{
           state.spinCount = res.spinCount;
           renderAll();
         }
-        return loadLog();
-      }).catch(function(){
-        showAlert("โหลดข้อมูลไม่สำเร็จ ตรวจสอบการเชื่อมต่อ");
       });
+    return Promise.all([configPromise, loadLog()]).catch(function(){
+      showAlert("โหลดข้อมูลไม่สำเร็จ ตรวจสอบการเชื่อมต่อ");
+    });
   }
 
   // ---------- boot ----------

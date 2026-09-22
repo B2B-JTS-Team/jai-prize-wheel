@@ -6,6 +6,8 @@
 <title>JAI Prize Wheel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -254,6 +256,19 @@ body{
     lastSpinId: null
   };
 
+  var CONFIG_CACHE_KEY = "jaiWheelConfigCache";
+  function readCachedPrizes(){
+    try {
+      var raw = localStorage.getItem(CONFIG_CACHE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return (parsed && Array.isArray(parsed.prizes) && parsed.prizes.length) ? parsed.prizes : null;
+    } catch(e){ return null; }
+  }
+  function writeCachedPrizes(prizes){
+    try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ prizes: prizes, ts: Date.now() })); } catch(e){}
+  }
+
   function escapeHtml(s){
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
@@ -265,18 +280,21 @@ body{
     els.errorNote.hidden = false;
   }
 
-  // Everything is a GET with query-string params. A cross-origin POST to
-  // an Apps Script /exec URL gets blocked outright ("Failed to fetch") on
-  // some phones/browsers, because the 302 redirect it does internally
-  // (to script.googleusercontent.com) doesn't come back with CORS headers
-  // a cross-origin POST is happy with. GET doesn't hit that wall.
+  // Posting with Content-Type text/plain avoids a CORS preflight (which
+  // Apps Script web apps don't answer), while the body is still valid
+  // JSON that doPost() parses with JSON.parse(e.postData.contents).
   function callApi(action, payload){
-    var params = new URLSearchParams(Object.assign({ action: action }, payload || {}));
-    return fetch(API_BASE + "?" + params.toString()).then(function(res){ return res.json(); });
+    var body = Object.assign({ action: action }, payload || {});
+    return fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function(res){ return res.json(); });
   }
 
   function fetchConfig(){
-    return callApi("config");
+    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
+      .then(function(res){ return res.json(); });
   }
 
   // ---------- wheel rendering ----------
@@ -402,18 +420,41 @@ body{
       els.spinBtn.textContent = "หมุน!";
       return;
     }
+
+    // Show the wheel instantly from last-known data (if any) while the
+    // live config loads in the background, so the page never sits blank
+    // waiting on the Apps Script round-trip. Spin stays disabled until
+    // the live data confirms current stock/prizes.
+    var cached = readCachedPrizes();
+    if (cached){
+      state.prizes = cached;
+      renderWheel(state.prizes);
+      els.spinBtn.textContent = "กำลังโหลด...";
+      els.spinNote.textContent = "กำลังอัปเดตข้อมูลล่าสุด...";
+    }
+
     fetchConfig().then(function(res){
       if (!res || !res.ok || !Array.isArray(res.prizes) || !res.prizes.length){
         throw new Error("โหลดข้อมูลรางวัลไม่สำเร็จ");
       }
       state.prizes = res.prizes;
+      writeCachedPrizes(res.prizes);
       renderWheel(state.prizes);
       els.spinBtn.disabled = false;
       els.spinBtn.textContent = "หมุน!";
       els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ";
     }).catch(function(err){
-      showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
-      els.spinBtn.textContent = "หมุน!";
+      if (!cached){
+        showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
+        els.spinBtn.textContent = "หมุน!";
+      } else {
+        // Keep showing the cached wheel; just surface a small warning
+        // instead of blocking the page, and re-enable spin on cached data
+        // since it's the best we have.
+        els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ (ใช้ข้อมูลล่าสุดที่มี)";
+        els.spinBtn.disabled = false;
+        els.spinBtn.textContent = "หมุน!";
+      }
     });
   }
 
