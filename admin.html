@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JAI Prize Wheel — หลังบ้าน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F6FA; --surface:#FFFFFF; --surface-2:#EEF0F8;
+  --ink:#0D1846; --ink-dim:#666F91;
+  --accent:#0D1846; --accent-2:#E95623; --gold:#E95623;
+  --border:#E2E5F2; --danger:#D64545;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0A1230; --surface:#101B3E; --surface-2:#172551;
+    --ink:#F3F5FF; --ink-dim:#9AA4CC;
+    --accent:#FF7A50; --accent-2:#F2994A; --gold:#FDBA74;
+    --border:#243466; --danger:#F27171;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+  padding-inline:16px; padding-block:20px; min-height:100%;
+  display:flex; justify-content:center;
+}
+.font-display{font-family:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;}
+#app{width:100%;max-width:520px;display:flex;flex-direction:column;gap:16px;}
+
+.topbar{display:flex;align-items:center;gap:10px;}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(90deg,#E73A1C,#0D1846);
+  display:flex;align-items:center;justify-content:center;
+  font-family:"Chakra Petch",sans-serif;font-weight:700;color:#fff;font-size:14px;flex:none;
+}
+.brand-text b{display:block;font-family:"Chakra Petch",sans-serif;font-size:15px;}
+.brand-text span{display:block;font-size:11px;color:var(--ink-dim);}
+
+/* ---- login gate ---- */
+#gate{display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;padding:40px 12px;}
+#gate input{
+  font:inherit;font-size:15px;padding:10px 14px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface);color:var(--ink);width:100%;max-width:280px;
+}
+#gateError{color:var(--danger);font-size:12.5px;min-height:16px;}
+
+.section-title{
+  font-family:"Chakra Petch",sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);
+}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.stat-tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 10px;text-align:center;}
+.stat-tile b{display:block;font-family:"Chakra Petch",sans-serif;font-size:22px;font-variant-numeric:tabular-nums;}
+.stat-tile span{font-size:10.5px;color:var(--ink-dim);}
+
+.prize-list{display:flex;flex-direction:column;gap:10px;}
+.prize-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.prize-head{display:flex;align-items:center;gap:10px;}
+.color-dot{width:16px;height:16px;border-radius:5px;flex:none;border:1px solid rgba(0,0,0,.12);}
+.prob-pill{margin-left:auto;font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:13px;color:var(--accent);background:var(--surface-2);padding:3px 10px;border-radius:999px;font-variant-numeric:tabular-nums;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-size:11px;color:var(--ink-dim);}
+.field input[type="text"],.field input[type="number"]{
+  font-family:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:8px;padding:7px 9px;width:100%;
+}
+.stock-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.stock-row .field{flex:1;min-width:110px;}
+.unlimited-toggle{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-dim);white-space:nowrap;}
+.remaining-note{font-size:11.5px;color:var(--ink-dim);}
+.color-row{display:flex;align-items:center;gap:8px;}
+.color-row input[type="color"]{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;}
+
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.btn{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.02em;
+  border-radius:10px;padding:10px 18px;cursor:pointer;border:1px solid transparent;transition:filter .15s,transform .1s;}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-ghost{background:transparent;color:var(--ink-dim);border-color:var(--border);}
+.btn-ghost:hover{color:var(--ink);border-color:var(--ink-dim);}
+.btn-add{
+  border:1px dashed var(--border);background:transparent;color:var(--ink-dim);
+  border-radius:14px;padding:12px;font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:13.5px;
+  cursor:pointer;transition:color .15s,border-color .15s;
+}
+.btn-add:hover{color:var(--accent);border-color:var(--accent);}
+.save-status{font-size:12px;color:var(--ink-dim);}
+.prize-remove{
+  margin-left:auto;background:none;border:none;color:var(--ink-dim);cursor:pointer;
+  padding:10px;margin-right:-10px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  min-width:40px;min-height:40px;
+}
+.prize-remove:hover{color:var(--danger);}
+.prize-remove:disabled{opacity:.35;cursor:not-allowed;}
+.prize-remove svg{width:15px;height:15px;}
+.prize-head .prob-pill{margin-left:0;}
+
+.log-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.log-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+.log-table th,.log-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.log-table th{color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+.log-table tr:last-child td{border-bottom:none;}
+.log-empty{padding:16px;text-align:center;color:var(--ink-dim);font-size:12.5px;}
+.claim-btn{
+  font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:11.5px;
+  border-radius:999px;padding:4px 10px;cursor:pointer;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--ink-dim);
+}
+.claim-btn.claimed{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.alert-banner{
+  background:color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:9px 12px;
+  font-size:12.5px;font-weight:600;
+}
+.alert-banner[hidden]{display:none;}
+#backendUI[hidden]{display:none;}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- LOGIN GATE -->
+  <div id="gate">
+    <div class="brand-mark" style="width:44px;height:44px;font-size:18px;">J</div>
+    <div>
+      <div class="font-display" style="font-size:18px;font-weight:700;">JAI Prize Wheel — หลังบ้าน</div>
+      <div style="font-size:12.5px;color:var(--ink-dim);margin-top:4px;">ใส่รหัสผ่านผู้ดูแลระบบเพื่อเข้าใช้งาน</div>
+    </div>
+    <input type="password" id="tokenInput" placeholder="รหัสผ่านผู้ดูแล (ADMIN_TOKEN)">
+    <button class="btn btn-primary" id="loginBtn">เข้าสู่ระบบ</button>
+    <div id="gateError"></div>
+  </div>
+
+  <!-- ADMIN UI -->
+  <div id="backendUI" hidden>
+    <div class="topbar">
+      <div class="brand-mark">J</div>
+      <div class="brand-text">
+        <b class="font-display">JAI PRIZE WHEEL</b>
+        <span>แผงควบคุมหลังบ้าน</span>
+      </div>
+      <button class="btn btn-ghost" id="logoutBtn" style="margin-left:auto;">ออกจากระบบ</button>
+    </div>
+
+    <div class="section-title">ภาพรวม</div>
+    <div class="stat-row">
+      <div class="stat-tile"><b id="statSpins">0</b><span>จำนวนหมุนทั้งหมด</span></div>
+      <div class="stat-tile"><b id="statRemaining">0</b><span>ของรางวัลคงเหลือ</span></div>
+      <div class="stat-tile"><b id="statPrizes">0</b><span>ประเภทรางวัล</span></div>
+    </div>
+
+    <div class="section-title">ตั้งค่าของรางวัล &amp; ความน่าจะเป็น</div>
+    <div class="alert-banner" id="alertBanner" hidden></div>
+    <div class="prize-list" id="prizeList"></div>
+    <button class="btn-add" id="addPrizeBtn">+ เพิ่มรางวัลใหม่</button>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="saveBtn">บันทึกการตั้งค่า</button>
+      <button class="btn btn-ghost" id="resetStockBtn">รีเซ็ตสต็อกทั้งหมด</button>
+      <button class="btn btn-ghost" id="refreshBtn">รีเฟรชข้อมูล</button>
+      <span class="save-status" id="saveStatus"></span>
+    </div>
+
+    <div class="section-title">ประวัติการหมุนล่าสุด (50 รายการล่าสุด)</div>
+    <div class="log-wrap">
+      <table class="log-table" id="logTable" hidden>
+        <thead><tr><th>เวลา</th><th>รางวัลที่ได้</th><th>สถานะ</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div class="log-empty" id="logEmpty">ยังไม่มีประวัติการหมุน</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===== EDIT ME: paste the same Apps Script Web App /exec URL as index.html =====
+  var API_BASE = "https://script.google.com/macros/s/AKfycbxwhhDu8ikACIPQT1QcSYbk_uVXppnSv9ZVfzRCdjHsa8I7Ux-luxDJ-Ea0cdRXTbOQkw/exec";
+  // =================================================================================
+
+  var STORAGE_KEY = "jaiWheelAdminToken";
+  var PALETTE = ["#0D1846","#E95623","#1B2B5E","#FF8A3D","#233876","#F2994A","#101A3D","#FFB088"];
+
+  var els = {
+    gate: document.getElementById("gate"),
+    tokenInput: document.getElementById("tokenInput"),
+    loginBtn: document.getElementById("loginBtn"),
+    gateError: document.getElementById("gateError"),
+    backendUI: document.getElementById("backendUI"),
+    logoutBtn: document.getElementById("logoutBtn"),
+    statSpins: document.getElementById("statSpins"),
+    statRemaining: document.getElementById("statRemaining"),
+    statPrizes: document.getElementById("statPrizes"),
+    prizeList: document.getElementById("prizeList"),
+    alertBanner: document.getElementById("alertBanner"),
+    addPrizeBtn: document.getElementById("addPrizeBtn"),
+    saveBtn: document.getElementById("saveBtn"),
+    resetStockBtn: document.getElementById("resetStockBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    saveStatus: document.getElementById("saveStatus"),
+    logTable: document.getElementById("logTable"),
+    logBody: document.getElementById("logBody"),
+    logEmpty: document.getElementById("logEmpty")
+  };
+
+  var state = { token: null, prizes: [], spinCount: 0, newSeq: 0 };
+
+  function escapeHtml(s){
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g, "&quot;"); }
+
+  function callApi(action, payload){
+    var body = Object.assign({ action: action, token: state.token }, payload || {});
+    return fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function(res){ return res.json(); });
+  }
+
+  function showAlert(msg){
+    els.alertBanner.textContent = msg;
+    els.alertBanner.hidden = false;
+    window.clearTimeout(showAlert._t);
+    showAlert._t = window.setTimeout(function(){ els.alertBanner.hidden = true; }, 4500);
+  }
+
+  // ---------- login ----------
+  function tryLogin(token){
+    els.gateError.textContent = "";
+    els.loginBtn.disabled = true;
+    els.loginBtn.textContent = "กำลังตรวจสอบ...";
+    fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "adminAuth", token: token })
+    }).then(function(res){ return res.json(); }).then(function(res){
+      els.loginBtn.disabled = false;
+      els.loginBtn.textContent = "เข้าสู่ระบบ";
+      if (res && res.ok){
+        state.token = token;
+        try { localStorage.setItem(STORAGE_KEY, token); } catch(e){}
+        els.gate.hidden = true;
+        els.backendUI.hidden = false;
+        loadAll();
+      } else {
+        els.gateError.textContent = "รหัสผ่านไม่ถูกต้อง";
+      }
+    }).catch(function(){
+      els.loginBtn.disabled = false;
+      els.loginBtn.textContent = "เข้าสู่ระบบ";
+      els.gateError.textContent = "เชื่อมต่อ backend ไม่ได้ ตรวจสอบ API_BASE ในไฟล์นี้";
+    });
+  }
+
+  els.loginBtn.addEventListener("click", function(){
+    var v = els.tokenInput.value.trim();
+    if (!v){ els.gateError.textContent = "กรุณาใส่รหัสผ่าน"; return; }
+    tryLogin(v);
+  });
+  els.tokenInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter") els.loginBtn.click();
+  });
+  els.logoutBtn.addEventListener("click", function(){
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+    window.location.reload();
+  });
+
+  // ---------- rendering ----------
+  function renderAll(){
+    var remainingTotal = 0;
+    state.prizes.forEach(function(p){ if (p.limited) remainingTotal += Math.max(0, p.remaining); });
+    els.statSpins.textContent = state.spinCount;
+    els.statRemaining.textContent = remainingTotal;
+    els.statPrizes.textContent = state.prizes.length;
+
+    var totalWeight = state.prizes.reduce(function(s,p){ return s + Math.max(0, Number(p.weight)||0); }, 0);
+
+    els.prizeList.innerHTML = "";
+    state.prizes.forEach(function(p, i){
+      var pct = totalWeight > 0 ? ((Math.max(0, p.weight) / totalWeight) * 100).toFixed(1) : "0.0";
+      var card = document.createElement("div");
+      card.className = "prize-card";
+      card.innerHTML =
+        '<div class="prize-head">' +
+          '<span class="color-dot" style="background:' + p.color + '"></span>' +
+          '<span style="font-size:12px;color:var(--ink-dim)">รางวัลที่ ' + (i+1) + '</span>' +
+          '<span class="prob-pill" data-pct="' + i + '">' + pct + '%</span>' +
+          '<button type="button" class="prize-remove" data-remove-idx="' + i + '" ' +
+            (state.prizes.length <= 2 ? 'disabled title="ต้องมีอย่างน้อย 2 รางวัลบนวงล้อ"' : 'title="ลบรางวัลนี้"') +
+            ' aria-label="ลบรางวัลนี้">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>ชื่อของรางวัล</label>' +
+            '<input type="text" data-idx="' + i + '" data-field="name" value="' + escapeAttr(p.name) + '"></div>' +
+          '<div class="field"><label>น้ำหนักความน่าจะเป็น</label>' +
+            '<input type="number" min="0" step="1" data-idx="' + i + '" data-field="weight" value="' + p.weight + '"></div>' +
+        '</div>' +
+        '<div class="stock-row">' +
+          '<div class="field"><label>จำนวนคงเหลือ</label>' +
+            '<input type="number" min="0" step="1" data-idx="' + i + '" data-field="remaining" value="' + p.remaining + '" ' + (p.limited ? "" : "disabled") + '></div>' +
+          '<label class="unlimited-toggle"><input type="checkbox" data-idx="' + i + '" data-field="limited" ' + (p.limited ? "" : "checked") + '> ไม่จำกัดจำนวน</label>' +
+        '</div>' +
+        '<div class="remaining-note">สต็อกตั้งต้น: ' +
+          '<input type="number" min="0" step="1" style="width:64px;display:inline-block;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);font:inherit" data-idx="' + i + '" data-field="stock" value="' + p.stock + '" ' + (p.limited ? "" : "disabled") + '> (ใช้ตอนกด "รีเซ็ตสต็อกทั้งหมด")</div>' +
+        '<div class="color-row"><label style="font-size:11px;color:var(--ink-dim)">สี</label>' +
+          '<input type="color" data-idx="' + i + '" data-field="color" value="' + p.color + '"></div>';
+      els.prizeList.appendChild(card);
+    });
+
+    els.prizeList.querySelectorAll("input").forEach(function(input){
+      input.addEventListener("input", onFieldChange);
+      input.addEventListener("change", onFieldChange);
+    });
+    els.prizeList.querySelectorAll("[data-remove-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        removePrize(Number(btn.getAttribute("data-remove-idx")));
+      });
+    });
+  }
+
+  function onFieldChange(e){
+    var idx = Number(e.target.getAttribute("data-idx"));
+    var field = e.target.getAttribute("data-field");
+    var p = state.prizes[idx];
+    if (!p) return;
+    if (field === "name") p.name = e.target.value;
+    else if (field === "weight") p.weight = Math.max(0, Number(e.target.value) || 0);
+    else if (field === "remaining") p.remaining = Math.max(0, Math.floor(Number(e.target.value) || 0));
+    else if (field === "stock") p.stock = Math.max(0, Math.floor(Number(e.target.value) || 0));
+    else if (field === "color") p.color = e.target.value;
+    else if (field === "limited") p.limited = !e.target.checked;
+
+    var totalWeight = state.prizes.reduce(function(s,pp){ return s + Math.max(0, Number(pp.weight)||0); }, 0);
+    state.prizes.forEach(function(pp, i){
+      var pill = els.prizeList.querySelector('[data-pct="' + i + '"]');
+      if (pill) pill.textContent = (totalWeight > 0 ? ((Math.max(0,pp.weight)/totalWeight)*100).toFixed(1) : "0.0") + "%";
+    });
+    if (field === "limited" || field === "color") renderAll();
+  }
+
+  function addPrize(){
+    state.newSeq += 1;
+    var color = PALETTE[state.prizes.length % PALETTE.length];
+    state.prizes.push({
+      id: "p" + Date.now().toString(36) + state.newSeq,
+      name: "รางวัลใหม่ " + (state.prizes.length + 1),
+      color: color, weight: 10, limited: true, stock: 10, remaining: 10
+    });
+    renderAll();
+  }
+
+  function removePrize(idx){
+    if (state.prizes.length <= 2){
+      showAlert("ต้องมีอย่างน้อย 2 รางวัลบนวงล้อ จึงลบรางวัลนี้ไม่ได้");
+      return;
+    }
+    state.prizes.splice(idx, 1);
+    renderAll();
+  }
+
+  els.addPrizeBtn.addEventListener("click", addPrize);
+
+  function saveConfig(){
+    els.saveStatus.textContent = "กำลังบันทึก...";
+    callApi("adminSavePrizes", { prizes: state.prizes }).then(function(res){
+      if (res && res.ok){
+        els.saveStatus.textContent = "บันทึกแล้ว ✓";
+        window.setTimeout(function(){ els.saveStatus.textContent = ""; }, 2200);
+      } else {
+        els.saveStatus.textContent = "";
+        showAlert("บันทึกไม่สำเร็จ: " + ((res && res.error) || "ไม่ทราบสาเหตุ"));
+      }
+    }).catch(function(){
+      els.saveStatus.textContent = "";
+      showAlert("บันทึกไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)");
+    });
+  }
+
+  function resetStock(){
+    callApi("adminResetStock", {}).then(function(res){
+      if (res && res.ok && Array.isArray(res.prizes)){
+        state.prizes = res.prizes;
+        renderAll();
+        showAlert("รีเซ็ตสต็อกเรียบร้อยแล้ว");
+      } else {
+        showAlert("รีเซ็ตสต็อกไม่สำเร็จ");
+      }
+    }).catch(function(){ showAlert("รีเซ็ตสต็อกไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)"); });
+  }
+
+  els.saveBtn.addEventListener("click", saveConfig);
+  els.resetStockBtn.addEventListener("click", resetStock);
+  els.refreshBtn.addEventListener("click", loadAll);
+
+  function renderLog(rows){
+    if (!rows.length){
+      els.logTable.hidden = true;
+      els.logEmpty.hidden = false;
+      return;
+    }
+    els.logTable.hidden = false;
+    els.logEmpty.hidden = true;
+    els.logBody.innerHTML = rows.map(function(r){
+      var t = r.ts ? new Date(r.ts) : null;
+      var timeStr = t ? t.toLocaleString("th-TH", { hour:"2-digit", minute:"2-digit", second:"2-digit", day:"2-digit", month:"2-digit" }) : "-";
+      var claimed = !!r.claimed;
+      return "<tr><td>" + timeStr + "</td><td>" + escapeHtml(r.prizeName || "-") + "</td><td>" +
+        '<button type="button" class="claim-btn' + (claimed ? " claimed" : "") + '" data-claim-id="' + escapeAttr(r.id) + '" data-claimed="' + claimed + '">' +
+        (claimed ? "รับแล้ว ✓" : "ยังไม่รับ") + "</button></td></tr>";
+    }).join("");
+    els.logBody.querySelectorAll("[data-claim-id]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-claim-id");
+        var nowClaimed = btn.getAttribute("data-claimed") !== "true";
+        btn.disabled = true;
+        callApi("adminSetClaim", { spinId: id, claimed: nowClaimed }).then(function(){
+          loadLog();
+        }).finally(function(){ btn.disabled = false; });
+      });
+    });
+  }
+
+  function loadLog(){
+    return callApi("adminLog", {}).then(function(res){
+      if (res && res.ok){
+        state.spinCount = res.spins.length;
+        els.statSpins.textContent = state.spinCount;
+        renderLog(res.spins);
+      }
+    });
+  }
+
+  function loadAll(){
+    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
+      .then(function(res){ return res.json(); })
+      .then(function(res){
+        if (res && res.ok){
+          state.prizes = res.prizes;
+          state.spinCount = res.spinCount;
+          renderAll();
+        }
+        return loadLog();
+      }).catch(function(){
+        showAlert("โหลดข้อมูลไม่สำเร็จ ตรวจสอบการเชื่อมต่อ");
+      });
+  }
+
+  // ---------- boot ----------
+  (function(){
+    if (!API_BASE || API_BASE.indexOf("PASTE_YOUR") === 0){
+      els.gateError.textContent = "ยังไม่ได้ตั้งค่า API_BASE ในไฟล์ admin.html";
+      els.loginBtn.disabled = true;
+      return;
+    }
+    var saved = null;
+    try { saved = localStorage.getItem(STORAGE_KEY); } catch(e){}
+    if (saved) tryLogin(saved);
+  })();
+})();
+</script>
+</body>
+</html>

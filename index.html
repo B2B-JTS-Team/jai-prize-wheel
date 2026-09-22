@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JAI Prize Wheel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F6FA;
+  --surface:#FFFFFF;
+  --surface-2:#EEF0F8;
+  --ink:#0D1846;
+  --ink-dim:#666F91;
+  --accent:#0D1846;
+  --accent-2:#E95623;
+  --gold:#E95623;
+  --border:#E2E5F2;
+  --danger:#D64545;
+  --brand-gradient:linear-gradient(90deg,#E73A1C,#0D1846);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0A1230;
+    --surface:#101B3E;
+    --surface-2:#172551;
+    --ink:#F3F5FF;
+    --ink-dim:#9AA4CC;
+    --accent:#FF7A50;
+    --accent-2:#F2994A;
+    --gold:#FDBA74;
+    --border:#243466;
+    --danger:#F27171;
+    --brand-gradient:linear-gradient(90deg,#FF7A50,#4E5FA8);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+  padding-inline:16px;
+  padding-block:20px;
+  min-height:100%;
+  display:flex;
+  justify-content:center;
+}
+.font-display{font-family:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;}
+
+#app{width:100%;max-width:480px;display:flex;flex-direction:column;gap:18px;}
+
+.topbar{display:flex;align-items:center;justify-content:center;gap:10px;}
+.brand{display:flex;align-items:center;gap:9px;}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:var(--brand-gradient);
+  display:flex;align-items:center;justify-content:center;
+  font-family:"Chakra Petch",sans-serif;font-weight:700;color:#fff;font-size:14px;
+  flex:none;
+}
+.brand-text{line-height:1.15;}
+.brand-text b{display:block;font-family:"Chakra Petch",sans-serif;font-size:15px;letter-spacing:.02em;}
+.brand-text span{display:block;font-size:11px;color:var(--ink-dim);}
+
+#front{display:flex;flex-direction:column;align-items:center;gap:20px;}
+
+.wheel-stage{
+  position:relative;
+  width:min(78vw,320px);
+  aspect-ratio:1/1;
+  display:flex;align-items:center;justify-content:center;
+}
+.pointer{
+  position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  width:0;height:0;z-index:3;
+  border-left:14px solid transparent;
+  border-right:14px solid transparent;
+  border-top:24px solid var(--gold);
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));
+}
+.wheel-ring{
+  position:absolute;inset:-8px;border-radius:50%;
+  background:conic-gradient(from 0deg,var(--accent),var(--accent-2),var(--accent));
+  opacity:.55;filter:blur(2px);
+}
+.wheel{
+  position:relative;width:100%;height:100%;border-radius:50%;
+  border:5px solid var(--surface);
+  box-shadow:0 10px 30px rgba(20,10,50,.25),inset 0 0 0 2px var(--border);
+  transition:transform 4.2s cubic-bezier(.13,.72,.06,1);
+  overflow:hidden;
+  background:var(--surface-2);
+}
+.sector-labels{position:absolute;inset:0;}
+.sector-label{
+  position:absolute;top:50%;left:50%;
+  width:46%;
+  transform-origin:0 50%;
+  text-align:right;
+  padding-right:14px;
+  font-family:"Chakra Petch",sans-serif;
+  font-weight:700;
+  font-size:12.5px;
+  line-height:1.15;
+  color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.35);
+  pointer-events:none;
+}
+.sector-label small{display:block;font-family:"IBM Plex Sans Thai",sans-serif;font-weight:400;font-size:10px;opacity:.85;}
+.hub{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:20%;aspect-ratio:1/1;border-radius:50%;
+  background:var(--surface);
+  border:3px solid var(--gold);
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+  z-index:2;
+  display:flex;align-items:center;justify-content:center;
+}
+.hub-dot{width:34%;aspect-ratio:1/1;border-radius:50%;background:var(--accent);}
+
+.spin-btn{
+  font-family:"Chakra Petch",sans-serif;
+  font-size:20px;font-weight:700;letter-spacing:.04em;
+  color:#fff;
+  background:var(--brand-gradient);
+  border:none;border-radius:999px;
+  padding:15px 46px;
+  cursor:pointer;
+  box-shadow:0 8px 20px -6px color-mix(in srgb,var(--accent-2) 70%,transparent);
+  transition:transform .12s ease,box-shadow .12s ease,filter .15s;
+}
+.spin-btn:hover{filter:brightness(1.06);}
+.spin-btn:active{transform:translateY(1px) scale(.99);}
+.spin-btn:disabled{opacity:.5;cursor:not-allowed;filter:none;transform:none;}
+.spin-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+
+.spin-note{font-size:12.5px;color:var(--ink-dim);text-align:center;min-height:16px;}
+
+.result-card{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px 20px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  flex-wrap:wrap;
+  animation:pop .35s cubic-bezier(.2,1.4,.4,1);
+}
+.result-card[hidden]{display:none;}
+@keyframes pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+.result-swatch{width:44px;height:44px;border-radius:12px;flex:none;}
+.result-text b{display:block;font-family:"Chakra Petch",sans-serif;font-size:17px;}
+.result-text span{font-size:12.5px;color:var(--ink-dim);}
+.claim-btn{
+  font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:12.5px;
+  border-radius:999px;padding:8px 16px;cursor:pointer;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--ink-dim);margin-left:auto;flex:none;
+}
+.claim-btn.claimed{background:var(--accent);color:#fff;border-color:var(--accent);}
+.claim-btn:disabled{cursor:default;opacity:.85;}
+
+@media (prefers-reduced-motion: reduce){
+  .wheel{transition:transform .6s ease;}
+  .result-card{animation:none;}
+}
+
+#confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:50;}
+.confetti-piece{
+  position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;
+  animation:fall linear forwards;
+}
+@keyframes fall{ to{transform:translateY(110vh) rotate(540deg);opacity:.9;} }
+
+.error-note{
+  font-size:12.5px;color:var(--danger);text-align:center;
+  border:1px solid var(--danger);border-radius:10px;padding:10px 12px;
+  background:color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.error-note[hidden]{display:none;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">J</div>
+      <div class="brand-text">
+        <b class="font-display">JAI PRIZE WHEEL</b>
+        <span>หมุนวงล้อรับของรางวัล</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="front">
+    <div class="wheel-stage">
+      <div class="wheel-ring"></div>
+      <div class="pointer"></div>
+      <div class="wheel" id="wheel">
+        <div class="sector-labels" id="sectorLabels"></div>
+        <div class="hub"><div class="hub-dot"></div></div>
+      </div>
+    </div>
+    <button class="spin-btn font-display" id="spinBtn" disabled>กำลังโหลด...</button>
+    <div class="spin-note" id="spinNote">&nbsp;</div>
+    <div class="result-card" id="resultCard" hidden>
+      <div class="result-swatch" id="resultSwatch"></div>
+      <div class="result-text">
+        <b id="resultName">—</b>
+        <span id="resultSub">ยินดีด้วย!</span>
+      </div>
+      <button class="claim-btn" id="claimBtn">รับรางวัลแล้ว</button>
+    </div>
+    <div class="error-note" id="errorNote" hidden></div>
+  </div>
+</div>
+
+<div id="confetti"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===== EDIT ME: paste the Apps Script Web App /exec URL here =====
+  var API_BASE = "https://script.google.com/macros/s/AKfycbxwhhDu8ikACIPQT1QcSYbk_uVXppnSv9ZVfzRCdjHsa8I7Ux-luxDJ-Ea0cdRXTbOQkw/exec";
+  // ===================================================================
+
+  var els = {
+    wheel: document.getElementById("wheel"),
+    sectorLabels: document.getElementById("sectorLabels"),
+    spinBtn: document.getElementById("spinBtn"),
+    spinNote: document.getElementById("spinNote"),
+    resultCard: document.getElementById("resultCard"),
+    resultSwatch: document.getElementById("resultSwatch"),
+    resultName: document.getElementById("resultName"),
+    resultSub: document.getElementById("resultSub"),
+    claimBtn: document.getElementById("claimBtn"),
+    confetti: document.getElementById("confetti"),
+    errorNote: document.getElementById("errorNote")
+  };
+
+  var state = {
+    prizes: [],
+    spinning: false,
+    currentRotation: 0,
+    lastSpinId: null
+  };
+
+  function escapeHtml(s){
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  function showError(msg){
+    els.errorNote.textContent = msg;
+    els.errorNote.hidden = false;
+  }
+
+  // Posting with Content-Type text/plain avoids a CORS preflight (which
+  // Apps Script web apps don't answer), while the body is still valid
+  // JSON that doPost() parses with JSON.parse(e.postData.contents).
+  function callApi(action, payload){
+    var body = Object.assign({ action: action }, payload || {});
+    return fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function(res){ return res.json(); });
+  }
+
+  function fetchConfig(){
+    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
+      .then(function(res){ return res.json(); });
+  }
+
+  // ---------- wheel rendering ----------
+  function renderWheel(prizes){
+    var n = prizes.length;
+    if (n === 0) return;
+    var slice = 360 / n;
+    var gradientStops = [];
+    prizes.forEach(function(p, i){
+      var start = i * slice;
+      var end = start + slice;
+      gradientStops.push(p.color + " " + start + "deg " + end + "deg");
+    });
+    els.wheel.style.background = "conic-gradient(" + gradientStops.join(",") + ")";
+
+    els.sectorLabels.innerHTML = "";
+    prizes.forEach(function(p, i){
+      var center = i * slice + slice / 2;
+      var label = document.createElement("div");
+      label.className = "sector-label";
+      // The label spoke's un-rotated resting position points at 3 o'clock
+      // (conic-gradient angle 90deg); subtract 90deg so it lands on its
+      // own color sector instead of the one 90deg clockwise from it.
+      label.style.transform = "translateY(-50%) rotate(" + (center - 90) + "deg)";
+      var soldOut = p.limited && p.remaining <= 0;
+      label.innerHTML = escapeHtml(p.name) + (soldOut ? "<small>หมดแล้ว</small>" : "");
+      if (soldOut) label.style.opacity = ".55";
+      els.sectorLabels.appendChild(label);
+    });
+  }
+
+  function burstConfetti(color){
+    var colors = [color, "#0D1846", "#E95623", "#1B2B5E"];
+    for (var i = 0; i < 26; i++){
+      var piece = document.createElement("div");
+      piece.className = "confetti-piece";
+      piece.style.left = (Math.random() * 100) + "vw";
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDuration = (2 + Math.random() * 1.4) + "s";
+      piece.style.opacity = String(0.7 + Math.random() * 0.3);
+      els.confetti.appendChild(piece);
+      (function(el){ window.setTimeout(function(){ el.remove(); }, 3600); })(piece);
+    }
+  }
+
+  function showResult(prize){
+    els.resultSwatch.style.background = prize.color;
+    els.resultName.textContent = prize.name;
+    els.resultSub.textContent = "ยินดีด้วย! รับของรางวัลได้ที่บูธ";
+    els.resultCard.hidden = false;
+    els.spinNote.textContent = "แตะปุ่มเพื่อหมุนอีกครั้ง";
+    els.claimBtn.hidden = false;
+    els.claimBtn.disabled = false;
+    els.claimBtn.textContent = "รับรางวัลแล้ว";
+    els.claimBtn.classList.remove("claimed");
+    burstConfetti(prize.color);
+  }
+
+  function claimLastSpin(){
+    if (!state.lastSpinId) return;
+    els.claimBtn.disabled = true;
+    els.claimBtn.textContent = "รับรางวัลแล้ว ✓";
+    els.claimBtn.classList.add("claimed");
+    callApi("claim", { spinId: state.lastSpinId }).catch(function(){});
+  }
+
+  // ---------- spin flow ----------
+  function spin(){
+    if (state.spinning || !state.prizes.length) return;
+    state.spinning = true;
+    els.spinBtn.disabled = true;
+    els.resultCard.hidden = true;
+    els.errorNote.hidden = true;
+    els.spinNote.textContent = "กำลังหมุน...";
+
+    callApi("spin", {}).then(function(res){
+      if (!res || !res.ok || !res.prize){
+        throw new Error((res && res.error) || "spin_failed");
+      }
+      var winner = res.prize;
+      state.lastSpinId = res.spinId;
+
+      var idx = state.prizes.findIndex(function(p){ return p.id === winner.id; });
+      if (idx === -1) idx = 0;
+      // keep local remaining count in sync for the "หมดแล้ว" label
+      if (winner.limited){
+        var local = state.prizes[idx];
+        if (local) local.remaining = winner.remaining;
+      }
+
+      var n = state.prizes.length;
+      var slice = 360 / n;
+      var center = idx * slice + slice / 2;
+      var jitter = (Math.random() - 0.5) * (slice * 0.5);
+      var targetWithinTurn = (360 - center + jitter + 360) % 360;
+      var fullSpins = 6 + Math.floor(Math.random() * 2);
+      var prevMod = ((state.currentRotation % 360) + 360) % 360;
+      var delta = (fullSpins * 360) + ((targetWithinTurn - prevMod + 360) % 360);
+      state.currentRotation += delta;
+      els.wheel.style.transform = "rotate(" + state.currentRotation + "deg)";
+
+      window.setTimeout(function(){
+        state.spinning = false;
+        els.spinBtn.disabled = false;
+        renderWheel(state.prizes);
+        showResult(winner);
+      }, 4300);
+    }).catch(function(err){
+      state.spinning = false;
+      els.spinBtn.disabled = false;
+      els.spinNote.textContent = "แตะปุ่มเพื่อหมุน";
+      showError("หมุนไม่สำเร็จ ลองใหม่อีกครั้ง (" + (err && err.message ? err.message : "เชื่อมต่อไม่ได้") + ")");
+    });
+  }
+
+  els.spinBtn.addEventListener("click", spin);
+  els.claimBtn.addEventListener("click", claimLastSpin);
+
+  // ---------- boot ----------
+  function boot(){
+    if (!API_BASE || API_BASE.indexOf("PASTE_YOUR") === 0){
+      showError("ยังไม่ได้ตั้งค่า API_BASE ในไฟล์ index.html — ใส่ URL ของ Apps Script Web App ก่อนใช้งานจริง");
+      els.spinBtn.textContent = "หมุน!";
+      return;
+    }
+    fetchConfig().then(function(res){
+      if (!res || !res.ok || !Array.isArray(res.prizes) || !res.prizes.length){
+        throw new Error("โหลดข้อมูลรางวัลไม่สำเร็จ");
+      }
+      state.prizes = res.prizes;
+      renderWheel(state.prizes);
+      els.spinBtn.disabled = false;
+      els.spinBtn.textContent = "หมุน!";
+      els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ";
+    }).catch(function(err){
+      showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
+      els.spinBtn.textContent = "หมุน!";
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
