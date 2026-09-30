@@ -4,11 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JAI Prize Wheel</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" href="data:,">
+<script>
+// Start loading the prize list immediately (tiny static file on GitHub
+// Pages). The ?t= stamp skips the CDN cache so admin edits show up fast.
+window.__prizesP = fetch("prizes.json?t=" + Date.now(), { cache: "no-store" })
+  .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+window.__prizesP.catch(function(){});
+</script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://script.google.com">
-<link rel="preconnect" href="https://script.googleusercontent.com">
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Only the 2 weights this page uses, loaded without blocking first paint -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Sans+Thai:wght@400&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Sans+Thai:wght@400&display=swap"></noscript>
 <style>
 :root{
   --bg:#F5F6FA;
@@ -95,7 +102,7 @@ body{
   position:relative;width:100%;height:100%;border-radius:50%;
   border:5px solid var(--surface);
   box-shadow:0 10px 30px rgba(20,10,50,.25),inset 0 0 0 2px var(--border);
-  transition:transform 4.2s cubic-bezier(.13,.72,.06,1);
+  will-change:transform; /* own GPU layer: rotation doesn't repaint the page */
   overflow:hidden;
   background:var(--surface-2);
 }
@@ -136,6 +143,8 @@ body{
   cursor:pointer;
   box-shadow:0 8px 20px -6px color-mix(in srgb,var(--accent-2) 70%,transparent);
   transition:transform .12s ease,box-shadow .12s ease,filter .15s;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
 }
 .spin-btn:hover{filter:brightness(1.06);}
 .spin-btn:active{transform:translateY(1px) scale(.99);}
@@ -161,16 +170,8 @@ body{
 .result-swatch{width:44px;height:44px;border-radius:12px;flex:none;}
 .result-text b{display:block;font-family:"Chakra Petch",sans-serif;font-size:17px;}
 .result-text span{font-size:12.5px;color:var(--ink-dim);}
-.claim-btn{
-  font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:12.5px;
-  border-radius:999px;padding:8px 16px;cursor:pointer;border:1px solid var(--border);
-  background:var(--surface-2);color:var(--ink-dim);margin-left:auto;flex:none;
-}
-.claim-btn.claimed{background:var(--accent);color:#fff;border-color:var(--accent);}
-.claim-btn:disabled{cursor:default;opacity:.85;}
 
 @media (prefers-reduced-motion: reduce){
-  .wheel{transition:transform .6s ease;}
   .result-card{animation:none;}
 }
 
@@ -219,7 +220,6 @@ body{
         <b id="resultName">—</b>
         <span id="resultSub">ยินดีด้วย!</span>
       </div>
-      <button class="claim-btn" id="claimBtn">รับรางวัลแล้ว</button>
     </div>
     <div class="error-note" id="errorNote" hidden></div>
   </div>
@@ -227,13 +227,10 @@ body{
 
 <div id="confetti"></div>
 
+
 <script>
 (function(){
   "use strict";
-
-  // ===== EDIT ME: paste the Apps Script Web App /exec URL here =====
-  var API_BASE = "https://script.google.com/macros/s/AKfycbxwhhDu8ikACIPQT1QcSYbk_uVXppnSv9ZVfzRCdjHsa8I7Ux-luxDJ-Ea0cdRXTbOQkw/exec";
-  // ===================================================================
 
   var els = {
     wheel: document.getElementById("wheel"),
@@ -244,7 +241,6 @@ body{
     resultSwatch: document.getElementById("resultSwatch"),
     resultName: document.getElementById("resultName"),
     resultSub: document.getElementById("resultSub"),
-    claimBtn: document.getElementById("claimBtn"),
     confetti: document.getElementById("confetti"),
     errorNote: document.getElementById("errorNote")
   };
@@ -252,21 +248,25 @@ body{
   var state = {
     prizes: [],
     spinning: false,
-    currentRotation: 0,
-    lastSpinId: null
+    hasSpun: false,   // 1 spin per page visit — reset only by reloading the page
+    currentRotation: 0
   };
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var CONFIG_CACHE_KEY = "jaiWheelConfigCache";
-  function readCachedPrizes(){
-    try {
-      var raw = localStorage.getItem(CONFIG_CACHE_KEY);
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      return (parsed && Array.isArray(parsed.prizes) && parsed.prizes.length) ? parsed.prizes : null;
-    } catch(e){ return null; }
+  // Last good prize list, so the wheel still works if the network drops.
+  var CACHE_KEY = "jaiWheelPrizesCache";
+  function readCache(){
+    try { var p = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); return validPrizes(p) ? p : null; }
+    catch(e){ return null; }
   }
-  function writeCachedPrizes(prizes){
-    try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ prizes: prizes, ts: Date.now() })); } catch(e){}
+  function writeCache(prizes){
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(prizes)); } catch(e){}
+  }
+
+  function validPrizes(p){
+    return Array.isArray(p) && p.length >= 2 && p.every(function(x){
+      return x && typeof x.name === "string" && Number(x.weight) >= 0;
+    }) && p.some(function(x){ return Number(x.weight) > 0; });
   }
 
   function escapeHtml(s){
@@ -280,21 +280,76 @@ body{
     els.errorNote.hidden = false;
   }
 
-  // Posting with Content-Type text/plain avoids a CORS preflight (which
-  // Apps Script web apps don't answer), while the body is still valid
-  // JSON that doPost() parses with JSON.parse(e.postData.contents).
-  function callApi(action, payload){
-    var body = Object.assign({ action: action }, payload || {});
-    return fetch(API_BASE, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body)
-    }).then(function(res){ return res.json(); });
+  // ---------- weighted random draw (in the browser) ----------
+  function random01(){
+    if (window.crypto && crypto.getRandomValues){
+      var a = new Uint32Array(1); crypto.getRandomValues(a);
+      return a[0] / 4294967296;            // [0, 1)
+    }
+    return Math.random();
+  }
+  function drawIndex(prizes){
+    var total = prizes.reduce(function(s, p){ return s + Math.max(0, Number(p.weight) || 0); }, 0);
+    var r = random01() * total;
+    for (var i = 0; i < prizes.length; i++){
+      var w = Math.max(0, Number(prizes[i].weight) || 0);
+      if (r < w) return i;
+      r -= w;
+    }
+    // floating-point edge: last prize with weight > 0
+    for (var j = prizes.length - 1; j >= 0; j--) if (Number(prizes[j].weight) > 0) return j;
+    return 0;
   }
 
-  function fetchConfig(){
-    return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
-      .then(function(res){ return res.json(); });
+  // ---------- spin motion (requestAnimationFrame, GPU transform only) ----------
+  var MAX_V = 1.1;               // top speed, degrees per ms (~3 turns/s)
+  var anim = { phase: "idle", v: 0, raf: 0 };
+
+  function setAngle(a){
+    state.currentRotation = a;
+    els.wheel.style.transform = "rotate(" + a + "deg)";
+  }
+
+  function startFreeSpin(){
+    cancelAnimationFrame(anim.raf);
+    anim.phase = "free"; anim.v = 0;
+    var t0 = performance.now(), last = t0;
+    function tick(now){
+      if (anim.phase !== "free") return;
+      var dt = Math.min(now - last, 50); last = now;
+      anim.v = Math.min(MAX_V, MAX_V * (now - t0) / 350);  // ramp up over 0.35 s
+      setAngle(state.currentRotation + anim.v * dt);
+      anim.raf = requestAnimationFrame(tick);
+    }
+    anim.raf = requestAnimationFrame(tick);
+  }
+
+  // Ease-out-cubic over distance D, starting at the current speed.
+  function decelerate(D, minMs, maxMs, done){
+    cancelAnimationFrame(anim.raf);
+    anim.phase = "settle";
+    var a0 = state.currentRotation;
+    var v0 = Math.max(anim.v, 0.3);
+    var dur = Math.min(maxMs, Math.max(minMs, 3 * D / v0));
+    var t0 = performance.now();
+    function tick(now){
+      var p = Math.min(1, (now - t0) / dur);
+      setAngle(a0 + D * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) anim.raf = requestAnimationFrame(tick);
+      else { anim.phase = "idle"; anim.v = 0; if (done) done(); }
+    }
+    anim.raf = requestAnimationFrame(tick);
+  }
+
+  function settleOn(idx, n, done){
+    var slice = 360 / n;
+    var center = idx * slice + slice / 2;
+    var jitter = (random01() - 0.5) * (slice * 0.5);
+    var targetMod = (360 - center + jitter + 360) % 360;
+    var curMod = ((state.currentRotation % 360) + 360) % 360;
+    var turns = reduceMotion ? 0 : 720;                    // at least 2 more turns
+    var D = turns + ((targetMod - curMod + 360) % 360);
+    decelerate(D, reduceMotion ? 500 : 1800, reduceMotion ? 900 : 4200, done);
   }
 
   // ---------- wheel rendering ----------
@@ -302,26 +357,19 @@ body{
     var n = prizes.length;
     if (n === 0) return;
     var slice = 360 / n;
-    var gradientStops = [];
-    prizes.forEach(function(p, i){
-      var start = i * slice;
-      var end = start + slice;
-      gradientStops.push(p.color + " " + start + "deg " + end + "deg");
+    var stops = prizes.map(function(p, i){
+      return p.color + " " + (i * slice) + "deg " + ((i + 1) * slice) + "deg";
     });
-    els.wheel.style.background = "conic-gradient(" + gradientStops.join(",") + ")";
+    els.wheel.style.background = "conic-gradient(" + stops.join(",") + ")";
 
     els.sectorLabels.innerHTML = "";
     prizes.forEach(function(p, i){
       var center = i * slice + slice / 2;
       var label = document.createElement("div");
       label.className = "sector-label";
-      // The label spoke's un-rotated resting position points at 3 o'clock
-      // (conic-gradient angle 90deg); subtract 90deg so it lands on its
-      // own color sector instead of the one 90deg clockwise from it.
+      // Label spoke rests at 3 o'clock; subtract 90deg to sit on its sector.
       label.style.transform = "translateY(-50%) rotate(" + (center - 90) + "deg)";
-      var soldOut = p.limited && p.remaining <= 0;
-      label.innerHTML = escapeHtml(p.name) + (soldOut ? "<small>หมดแล้ว</small>" : "");
-      if (soldOut) label.style.opacity = ".55";
+      label.innerHTML = escapeHtml(p.name);
       els.sectorLabels.appendChild(label);
     });
   }
@@ -345,120 +393,58 @@ body{
     els.resultName.textContent = prize.name;
     els.resultSub.textContent = "ยินดีด้วย! รับของรางวัลได้ที่บูธ";
     els.resultCard.hidden = false;
-    els.spinNote.textContent = "แตะปุ่มเพื่อหมุนอีกครั้ง";
-    els.claimBtn.hidden = false;
-    els.claimBtn.disabled = false;
-    els.claimBtn.textContent = "รับรางวัลแล้ว";
-    els.claimBtn.classList.remove("claimed");
+    els.spinNote.textContent = "หมุนได้ 1 ครั้งต่อการเข้าหน้า";
     burstConfetti(prize.color);
   }
 
-  function claimLastSpin(){
-    if (!state.lastSpinId) return;
-    els.claimBtn.disabled = true;
-    els.claimBtn.textContent = "รับรางวัลแล้ว ✓";
-    els.claimBtn.classList.add("claimed");
-    callApi("claim", { spinId: state.lastSpinId }).catch(function(){});
-  }
-
-  // ---------- spin flow ----------
+  // ---------- spin flow (no network: instant) ----------
   function spin(){
-    if (state.spinning || !state.prizes.length) return;
+    if (state.spinning || state.hasSpun || !state.prizes.length) return;
     state.spinning = true;
+    state.hasSpun = true;
     els.spinBtn.disabled = true;
     els.resultCard.hidden = true;
     els.errorNote.hidden = true;
     els.spinNote.textContent = "กำลังหมุน...";
 
-    callApi("spin", {}).then(function(res){
-      if (!res || !res.ok || !res.prize){
-        throw new Error((res && res.error) || "spin_failed");
-      }
-      var winner = res.prize;
-      state.lastSpinId = res.spinId;
+    var idx = drawIndex(state.prizes);
+    var winner = state.prizes[idx];
 
-      var idx = state.prizes.findIndex(function(p){ return p.id === winner.id; });
-      if (idx === -1) idx = 0;
-      // keep local remaining count in sync for the "หมดแล้ว" label
-      if (winner.limited){
-        var local = state.prizes[idx];
-        if (local) local.remaining = winner.remaining;
-      }
-
-      var n = state.prizes.length;
-      var slice = 360 / n;
-      var center = idx * slice + slice / 2;
-      var jitter = (Math.random() - 0.5) * (slice * 0.5);
-      var targetWithinTurn = (360 - center + jitter + 360) % 360;
-      var fullSpins = 6 + Math.floor(Math.random() * 2);
-      var prevMod = ((state.currentRotation % 360) + 360) % 360;
-      var delta = (fullSpins * 360) + ((targetWithinTurn - prevMod + 360) % 360);
-      state.currentRotation += delta;
-      els.wheel.style.transform = "rotate(" + state.currentRotation + "deg)";
-
-      window.setTimeout(function(){
+    startFreeSpin();
+    window.setTimeout(function(){
+      settleOn(idx, state.prizes.length, function(){
         state.spinning = false;
-        els.spinBtn.disabled = false;
-        renderWheel(state.prizes);
+        els.spinBtn.textContent = "หมุนแล้ว";
         showResult(winner);
-      }, 4300);
-    }).catch(function(err){
-      state.spinning = false;
-      els.spinBtn.disabled = false;
-      els.spinNote.textContent = "แตะปุ่มเพื่อหมุน";
-      showError("หมุนไม่สำเร็จ ลองใหม่อีกครั้ง (" + (err && err.message ? err.message : "เชื่อมต่อไม่ได้") + ")");
-    });
+      });
+    }, reduceMotion ? 0 : 600);
   }
 
   els.spinBtn.addEventListener("click", spin);
-  els.claimBtn.addEventListener("click", claimLastSpin);
 
-  // ---------- boot ----------
-  function boot(){
-    if (!API_BASE || API_BASE.indexOf("PASTE_YOUR") === 0){
-      showError("ยังไม่ได้ตั้งค่า API_BASE ในไฟล์ index.html — ใส่ URL ของ Apps Script Web App ก่อนใช้งานจริง");
-      els.spinBtn.textContent = "หมุน!";
-      return;
-    }
-
-    // Show the wheel instantly from last-known data (if any) while the
-    // live config loads in the background, so the page never sits blank
-    // waiting on the Apps Script round-trip. Spin stays disabled until
-    // the live data confirms current stock/prizes.
-    var cached = readCachedPrizes();
-    if (cached){
-      state.prizes = cached;
-      renderWheel(state.prizes);
-      els.spinBtn.textContent = "กำลังโหลด...";
-      els.spinNote.textContent = "กำลังอัปเดตข้อมูลล่าสุด...";
-    }
-
-    fetchConfig().then(function(res){
-      if (!res || !res.ok || !Array.isArray(res.prizes) || !res.prizes.length){
-        throw new Error("โหลดข้อมูลรางวัลไม่สำเร็จ");
-      }
-      state.prizes = res.prizes;
-      writeCachedPrizes(res.prizes);
-      renderWheel(state.prizes);
-      els.spinBtn.disabled = false;
-      els.spinBtn.textContent = "หมุน!";
-      els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ";
-    }).catch(function(err){
-      if (!cached){
-        showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
-        els.spinBtn.textContent = "หมุน!";
-      } else {
-        // Keep showing the cached wheel; just surface a small warning
-        // instead of blocking the page, and re-enable spin on cached data
-        // since it's the best we have.
-        els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ (ใช้ข้อมูลล่าสุดที่มี)";
-        els.spinBtn.disabled = false;
-        els.spinBtn.textContent = "หมุน!";
-      }
-    });
+  function ready(prizes, note){
+    if (state.spinning || state.hasSpun) return;
+    state.prizes = prizes;
+    renderWheel(prizes);
+    els.spinBtn.disabled = false;
+    els.spinBtn.textContent = "หมุน!";
+    els.spinNote.textContent = note;
   }
 
-  boot();
+  // ---------- boot ----------
+  var cached = readCache();
+  if (cached) ready(cached, "แตะปุ่มเพื่อหมุนวงล้อ");
+
+  (window.__prizesP || Promise.reject(new Error("no request"))).then(function(data){
+    var prizes = data && data.prizes;
+    if (!validPrizes(prizes)) throw new Error("prizes.json ไม่ถูกต้อง");
+    writeCache(prizes);
+    ready(prizes, "แตะปุ่มเพื่อหมุนวงล้อ");
+  }).catch(function(err){
+    if (cached) return; // keep the saved wheel
+    showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
+    els.spinBtn.textContent = "หมุน!";
+  });
 })();
 </script>
 </body>
