@@ -4,11 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JAI Prize Wheel</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://script.google.com">
+<link rel="icon" href="data:,">
+<script>
+// ===== EDIT ME: paste the Apps Script Web App /exec URL here =====
+window.__JAI_API = "https://script.google.com/macros/s/AKfycbxwhhDu8ikACIPQT1QcSYbk_uVXppnSv9ZVfzRCdjHsa8I7Ux-luxDJ-Ea0cdRXTbOQkw/exec";
+// ===================================================================
+// Start the slow Apps Script prize-list request right away, in parallel
+// with fonts/CSS/body parsing, instead of waiting for the end of <body>.
+window.__configP = fetch(window.__JAI_API + "?action=config").then(function(r){ return r.json(); });
+window.__configP.catch(function(){});
+</script>
 <link rel="preconnect" href="https://script.googleusercontent.com">
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Only the 2 weights this page uses, loaded without blocking first paint -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Sans+Thai:wght@400&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=IBM+Plex+Sans+Thai:wght@400&display=swap"></noscript>
 <style>
 :root{
   --bg:#F5F6FA;
@@ -95,7 +105,7 @@ body{
   position:relative;width:100%;height:100%;border-radius:50%;
   border:5px solid var(--surface);
   box-shadow:0 10px 30px rgba(20,10,50,.25),inset 0 0 0 2px var(--border);
-  transition:transform 4.2s cubic-bezier(.13,.72,.06,1);
+  will-change:transform; /* own GPU layer: rotation doesn't repaint the page */
   overflow:hidden;
   background:var(--surface-2);
 }
@@ -136,6 +146,8 @@ body{
   cursor:pointer;
   box-shadow:0 8px 20px -6px color-mix(in srgb,var(--accent-2) 70%,transparent);
   transition:transform .12s ease,box-shadow .12s ease,filter .15s;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
 }
 .spin-btn:hover{filter:brightness(1.06);}
 .spin-btn:active{transform:translateY(1px) scale(.99);}
@@ -170,7 +182,6 @@ body{
 .claim-btn:disabled{cursor:default;opacity:.85;}
 
 @media (prefers-reduced-motion: reduce){
-  .wheel{transition:transform .6s ease;}
   .result-card{animation:none;}
 }
 
@@ -231,9 +242,9 @@ body{
 (function(){
   "use strict";
 
-  // ===== EDIT ME: paste the Apps Script Web App /exec URL here =====
-  var API_BASE = "https://script.google.com/macros/s/AKfycbxwhhDu8ikACIPQT1QcSYbk_uVXppnSv9ZVfzRCdjHsa8I7Ux-luxDJ-Ea0cdRXTbOQkw/exec";
-  // ===================================================================
+  // API URL is set once in <head> (window.__JAI_API) so the prize list
+  // can start loading before the page finishes parsing.
+  var API_BASE = window.__JAI_API;
 
   var els = {
     wheel: document.getElementById("wheel"),
@@ -254,8 +265,10 @@ body{
     spinning: false,
     hasSpun: false,   // 1 spin per page visit — reset only by reloading the page
     currentRotation: 0,
-    lastSpinId: null
+    lastSpinId: null,
+    configReady: Promise.resolve()  // settles once the live prize list has loaded (or failed)
   };
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var CONFIG_CACHE_KEY = "jaiWheelConfigCache";
   function readCachedPrizes(){
@@ -294,8 +307,69 @@ body{
   }
 
   function fetchConfig(){
+    // Reuse the request already started in <head>.
+    if (window.__configP){ var p = window.__configP; window.__configP = null; return p; }
     return fetch(API_BASE + (API_BASE.indexOf("?") >= 0 ? "&" : "?") + "action=config")
       .then(function(res){ return res.json(); });
+  }
+
+  // ---------- spin motion (requestAnimationFrame, GPU transform only) ----------
+  // The wheel starts turning the instant the button is tapped, while the
+  // Apps Script draw (1–3 s on mobile data) happens in the background.
+  // When the server answers, the wheel decelerates smoothly onto the prize.
+  var MAX_V = 1.1;               // top speed, degrees per ms (~3 turns/s)
+  var anim = { phase: "idle", v: 0, raf: 0 };
+
+  function setAngle(a){
+    state.currentRotation = a;
+    els.wheel.style.transform = "rotate(" + a + "deg)";
+  }
+
+  function startFreeSpin(){
+    cancelAnimationFrame(anim.raf);
+    anim.phase = "free"; anim.v = 0;
+    var t0 = performance.now(), last = t0;
+    function tick(now){
+      if (anim.phase !== "free") return;
+      var dt = Math.min(now - last, 50); last = now;       // cap jumps after tab switches
+      anim.v = Math.min(MAX_V, MAX_V * (now - t0) / 350);  // ramp up over 0.35 s
+      setAngle(state.currentRotation + anim.v * dt);
+      anim.raf = requestAnimationFrame(tick);
+    }
+    anim.raf = requestAnimationFrame(tick);
+  }
+
+  // Ease-out-cubic over distance D; duration picked so the starting speed
+  // matches the current speed (no visible jerk when the result arrives).
+  function decelerate(D, minMs, maxMs, done){
+    cancelAnimationFrame(anim.raf);
+    anim.phase = "settle";
+    var a0 = state.currentRotation;
+    var v0 = Math.max(anim.v, 0.3);
+    var dur = Math.min(maxMs, Math.max(minMs, 3 * D / v0));
+    var t0 = performance.now();
+    function tick(now){
+      var p = Math.min(1, (now - t0) / dur);
+      setAngle(a0 + D * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) anim.raf = requestAnimationFrame(tick);
+      else { anim.phase = "idle"; anim.v = 0; if (done) done(); }
+    }
+    anim.raf = requestAnimationFrame(tick);
+  }
+
+  function settleOn(idx, n, done){
+    var slice = 360 / n;
+    var center = idx * slice + slice / 2;
+    var jitter = (Math.random() - 0.5) * (slice * 0.5);
+    var targetMod = (360 - center + jitter + 360) % 360;
+    var curMod = ((state.currentRotation % 360) + 360) % 360;
+    var turns = reduceMotion ? 0 : 720;                    // at least 2 more turns
+    var D = turns + ((targetMod - curMod + 360) % 360);
+    decelerate(D, reduceMotion ? 500 : 1800, reduceMotion ? 900 : 4200, done);
+  }
+
+  function coastToStop(){
+    decelerate(Math.max(anim.v, 0.3) * 900 / 3, 600, 900, null);
   }
 
   // ---------- wheel rendering ----------
@@ -371,7 +445,14 @@ body{
     els.errorNote.hidden = true;
     els.spinNote.textContent = "กำลังหมุน...";
 
-    callApi("spin", {}).then(function(res){
+    // Wheel moves immediately; the server draw runs in the background.
+    startFreeSpin();
+
+    // Wait for the draw AND the live prize list (usually already loaded),
+    // so the wheel lands on the right sector even if prizes changed since
+    // the cached copy was shown.
+    Promise.all([callApi("spin", {}), state.configReady]).then(function(r){
+      var res = r[0];
       if (!res || !res.ok || !res.prize){
         throw new Error((res && res.error) || "spin_failed");
       }
@@ -388,26 +469,16 @@ body{
         var local = state.prizes[idx];
         if (local) local.remaining = winner.remaining;
       }
+      renderWheel(state.prizes); // make sure sectors match the live list before landing
 
-      var n = state.prizes.length;
-      var slice = 360 / n;
-      var center = idx * slice + slice / 2;
-      var jitter = (Math.random() - 0.5) * (slice * 0.5);
-      var targetWithinTurn = (360 - center + jitter + 360) % 360;
-      var fullSpins = 6 + Math.floor(Math.random() * 2);
-      var prevMod = ((state.currentRotation % 360) + 360) % 360;
-      var delta = (fullSpins * 360) + ((targetWithinTurn - prevMod + 360) % 360);
-      state.currentRotation += delta;
-      els.wheel.style.transform = "rotate(" + state.currentRotation + "deg)";
-
-      window.setTimeout(function(){
+      settleOn(idx, state.prizes.length, function(){
         state.spinning = false;
         els.spinBtn.disabled = true;
         els.spinBtn.textContent = "หมุนแล้ว";
-        renderWheel(state.prizes);
         showResult(winner);
-      }, 4300);
+      });
     }).catch(function(err){
+      coastToStop();
       state.spinning = false;
       // No prize was drawn, so allow a retry (unless a draw already happened).
       els.spinBtn.disabled = state.hasSpun;
@@ -419,6 +490,13 @@ body{
   els.spinBtn.addEventListener("click", spin);
   els.claimBtn.addEventListener("click", claimLastSpin);
 
+  function enableSpin(note){
+    if (state.spinning || state.hasSpun) return;
+    els.spinBtn.disabled = false;
+    els.spinBtn.textContent = "หมุน!";
+    els.spinNote.textContent = note;
+  }
+
   // ---------- boot ----------
   function boot(){
     if (!API_BASE || API_BASE.indexOf("PASTE_YOUR") === 0){
@@ -427,41 +505,32 @@ body{
       return;
     }
 
-    // Show the wheel instantly from last-known data (if any) while the
-    // live config loads in the background, so the page never sits blank
-    // waiting on the Apps Script round-trip. Spin stays disabled until
-    // the live data confirms current stock/prizes.
+    // Returning phones: draw the wheel from the saved prize list and allow
+    // spinning at once. The server always decides the prize, and spin()
+    // waits for the live list before landing, so this stays correct.
     var cached = readCachedPrizes();
     if (cached){
       state.prizes = cached;
       renderWheel(state.prizes);
-      els.spinBtn.textContent = "กำลังโหลด...";
-      els.spinNote.textContent = "กำลังอัปเดตข้อมูลล่าสุด...";
+      enableSpin("แตะปุ่มเพื่อหมุนวงล้อ");
     }
 
-    fetchConfig().then(function(res){
+    state.configReady = fetchConfig().then(function(res){
       if (!res || !res.ok || !Array.isArray(res.prizes) || !res.prizes.length){
         throw new Error("โหลดข้อมูลรางวัลไม่สำเร็จ");
       }
       state.prizes = res.prizes;
       writeCachedPrizes(res.prizes);
-      if (state.spinning || state.hasSpun) return; // don't redraw mid-spin or re-enable after the one spin
+      if (state.spinning || state.hasSpun) return; // spin() re-renders before landing
       renderWheel(state.prizes);
-      els.spinBtn.disabled = false;
-      els.spinBtn.textContent = "หมุน!";
-      els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ";
+      enableSpin("แตะปุ่มเพื่อหมุนวงล้อ");
     }).catch(function(err){
       if (state.hasSpun) return;
       if (!cached){
         showError("โหลดข้อมูลรางวัลไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง (" + (err && err.message ? err.message : "") + ")");
         els.spinBtn.textContent = "หมุน!";
       } else {
-        // Keep showing the cached wheel; just surface a small warning
-        // instead of blocking the page, and re-enable spin on cached data
-        // since it's the best we have.
-        els.spinNote.textContent = "แตะปุ่มเพื่อหมุนวงล้อ (ใช้ข้อมูลล่าสุดที่มี)";
-        els.spinBtn.disabled = false;
-        els.spinBtn.textContent = "หมุน!";
+        enableSpin("แตะปุ่มเพื่อหมุนวงล้อ (ใช้ข้อมูลล่าสุดที่มี)");
       }
     });
   }
