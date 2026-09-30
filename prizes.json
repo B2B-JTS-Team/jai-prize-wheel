@@ -1,0 +1,7 @@
+{
+  "prizes": [
+    { "id": "p1", "name": "ปากกา JAI", "color": "#0D1846", "weight": 70 },
+    { "id": "p2", "name": "ที่ตั้งโทรศัพท์ JAI", "color": "#E95623", "weight": 27.5 },
+    { "id": "p3", "name": "ร่ม JAI", "color": "#1B2B5E", "weight": 2.5 }
+  ]
+}
