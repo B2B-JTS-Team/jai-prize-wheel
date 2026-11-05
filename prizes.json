@@ -10,13 +10,13 @@
       "id": "p2",
       "name": "ที่ตั้งโทรศัพท์ JAI",
       "color": "#E95623",
-      "weight": 32.5
+      "weight": 27.5
     },
     {
       "id": "p3",
       "name": "ร่ม JAI",
       "color": "#1B2B5E",
-      "weight": 7.5
+      "weight": 13.5
     }
   ]
 }
